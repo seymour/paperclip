@@ -36,6 +36,10 @@ module Paperclip
       end
     end
 
+    def self.plural_cache
+      @plural_cache ||= PluralCache.new
+    end
+
     # Returns the filename, the same way as ":basename.:extension" would.
     def filename attachment, style_name
       [ basename(attachment, style_name), extension(attachment, style_name) ].reject(&:blank?).join(".")
@@ -81,7 +85,7 @@ module Paperclip
     # all class names. Calling #class will return the expected class.
     def class attachment = nil, style_name = nil
       return super() if attachment.nil? && style_name.nil?
-      attachment.instance.class.to_s.underscore.pluralize
+      plural_cache.underscore_and_pluralize(attachment.instance.class.to_s)
     end
 
     # Returns the basename of the file. e.g. "file" for "file.jpg"
@@ -97,9 +101,12 @@ module Paperclip
         File.extname(attachment.original_filename).gsub(/^\.+/, "")
     end
 
-    # Returns an extension based on the content type. e.g. "jpeg" for "image/jpeg".
+    # Returns an extension based on the content type. e.g. "jpeg" for
+    # "image/jpeg". If the style has a specified format, it will override the
+    # content-type detection.
+    #
     # Each mime type generally has multiple extensions associated with it, so
-    # if the extension from teh original filename is one of these extensions,
+    # if the extension from the original filename is one of these extensions,
     # that extension is used, otherwise, the first in the list is used.
     def content_type_extension attachment, style_name
       mime_type = MIME::Types[attachment.content_type]
@@ -110,7 +117,10 @@ module Paperclip
       end
 
       original_extension = extension(attachment, style_name)
-      if extensions_for_mime_type.include? original_extension
+      style = attachment.styles[style_name.to_s.to_sym]
+      if style && style[:format]
+        style[:format].to_s
+      elsif extensions_for_mime_type.include? original_extension
         original_extension
       elsif !extensions_for_mime_type.empty?
         extensions_for_mime_type.first
@@ -163,7 +173,7 @@ module Paperclip
     # Returns the pluralized form of the attachment name. e.g.
     # "avatars" for an attachment of :avatar
     def attachment attachment, style_name
-      attachment.name.to_s.downcase.pluralize
+      plural_cache.pluralize(attachment.name.to_s.downcase)
     end
 
     # Returns the style, or the default style if nil is supplied.

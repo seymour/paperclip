@@ -11,6 +11,7 @@ module Paperclip
       end
 
       def validate_each(record, attr_name, value)
+        base_attr_name = attr_name
         attr_name = "#{attr_name}_file_size".to_sym
         value = record.send(:read_attribute_for_validation, attr_name)
 
@@ -21,11 +22,13 @@ module Paperclip
 
             unless value.send(CHECKS[option], option_value)
               error_message_key = options[:in] ? :in_between : option
-              record.errors.add(attr_name, error_message_key, filtered_options(value).merge(
-                :min => min_value_in_human_size(record),
-                :max => max_value_in_human_size(record),
-                :count => human_size(option_value)
-              ))
+              [ attr_name, base_attr_name ].each do |error_attr_name|
+                record.errors.add(error_attr_name, error_message_key, filtered_options(value).merge(
+                  :min => min_value_in_human_size(record),
+                  :max => max_value_in_human_size(record),
+                  :count => human_size(option_value)
+                ))
+              end
             end
           end
         end
@@ -85,7 +88,7 @@ module Paperclip
     end
 
     module HelperMethods
-      # Places ActiveRecord-style validations on the size of the file assigned. The
+      # Places ActiveModel validations on the size of the file assigned. The
       # possible options are:
       # * +in+: a Range of bytes (i.e. +1..1.megabyte+),
       # * +less_than+: equivalent to :in => 0..options[:less_than]
@@ -95,7 +98,9 @@ module Paperclip
       #   be run if this lambda or method returns true.
       # * +unless+: Same as +if+ but validates if lambda or method returns false.
       def validates_attachment_size(*attr_names)
-        validates_with AttachmentSizeValidator, _merge_attributes(attr_names)
+        options = _merge_attributes(attr_names)
+        validates_with AttachmentSizeValidator, options.dup
+        validate_before_processing AttachmentSizeValidator, options.dup
       end
     end
   end

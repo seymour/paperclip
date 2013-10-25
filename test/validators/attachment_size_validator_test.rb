@@ -20,6 +20,11 @@ class AttachmentSizeValidatorTest < Test::Unit::TestCase
         assert @dummy.errors[:avatar_file_size].blank?,
           "Expect an error message on :avatar_file_size, got none."
       end
+
+      should "not add error to the base dummy object" do
+        assert @dummy.errors[:avatar].blank?,
+          "Error added to base attribute"
+      end
     end
   end
 
@@ -33,6 +38,16 @@ class AttachmentSizeValidatorTest < Test::Unit::TestCase
       should "add error to dummy object" do
         assert @dummy.errors[:avatar_file_size].present?,
           "Unexpected error message on :avatar_file_size"
+      end
+
+      should "add error to the base dummy object" do
+        assert @dummy.errors[:avatar].present?,
+          "Error not added to base attribute"
+      end
+
+      should "add error to base object as a string" do
+        assert_kind_of String, @dummy.errors[:avatar].first,
+          "Error added to base attribute as something other than a String"
       end
 
       if options[:message]

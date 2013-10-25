@@ -1,3 +1,5 @@
+require 'paperclip/attachment_registry'
+
 module Paperclip
   module Task
     def self.obtain_class
@@ -9,12 +11,22 @@ module Paperclip
     def self.obtain_attachments(klass)
       klass = Paperclip.class_for(klass.to_s)
       name = ENV['ATTACHMENT'] || ENV['attachment']
-      raise "Class #{klass.name} has no attachments specified" unless klass.respond_to?(:attachment_definitions)
-      if !name.blank? && klass.attachment_definitions.keys.include?(name)
+
+      attachment_names = Paperclip::AttachmentRegistry.names_for(klass)
+
+      if attachment_names.empty?
+        raise "Class #{klass.name} has no attachments specified"
+      end
+
+      if !name.blank? && attachment_names.map(&:to_s).include?(name.to_s)
         [ name ]
       else
-        klass.attachment_definitions.keys
+        attachment_names
       end
+    end
+
+    def self.log_error(error)
+      $stderr.puts error
     end
   end
 end
@@ -26,17 +38,24 @@ namespace :paperclip do
   namespace :refresh do
     desc "Regenerates thumbnails for a given CLASS (and optional ATTACHMENT and STYLES splitted by comma)."
     task :thumbnails => :environment do
-      errors = []
       klass = Paperclip::Task.obtain_class
       names = Paperclip::Task.obtain_attachments(klass)
       styles = (ENV['STYLES'] || ENV['styles'] || '').split(',').map(&:to_sym)
       names.each do |name|
         Paperclip.each_instance_with_attachment(klass, name) do |instance|
-          instance.send(name).reprocess!(*styles)
-          errors << [instance.id, instance.errors] unless instance.errors.blank?
+          attachment = instance.send(name)
+          begin
+            attachment.reprocess!(*styles)
+          rescue Exception => e
+            Paperclip::Task.log_error("exception while processing #{klass} ID #{instance.id}:")
+            Paperclip::Task.log_error(" " + e.message + "\n")
+          end
+          unless instance.errors.blank?
+            Paperclip::Task.log_error("errors while processing #{klass} ID #{instance.id}:")
+            Paperclip::Task.log_error(" " + instance.errors.full_messages.join("\n ") + "\n")
+          end
         end
       end
-      errors.each{|e| puts "#{e.first}: #{e.last.full_messages.inspect}" }
     end
 
     desc "Regenerates content_type/size metadata for a given CLASS (and optional ATTACHMENT)."

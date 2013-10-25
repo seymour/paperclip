@@ -15,7 +15,7 @@ module Paperclip
     #
     # And _include_ the module:
     #
-    #   Spec::Runner.configure do |config|
+    #   RSpec.configure do |config|
     #     config.include Paperclip::Shoulda::Matchers
     #   end
     #
@@ -41,7 +41,7 @@ module Paperclip
     #
     #   class ActiveSupport::TestCase
     #     extend Paperclip::Shoulda::Matchers
-    #     
+    #
     #     #...other initializers...#
     #   end
     #
@@ -57,7 +57,7 @@ module Paperclip
     #     should validate_attachment_size(:avatar).
     #                  less_than(2.megabytes)
     #   end
-    #  
+    #
     module Matchers
     end
   end

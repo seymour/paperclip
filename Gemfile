@@ -1,7 +1,13 @@
-source "http://rubygems.org"
+source "https://rubygems.org"
 
 gemspec
 
-gem "jruby-openssl", :platform => :jruby
-gem "activerecord-jdbcsqlite3-adapter", :platform => :jruby
-gem "sqlite3", :platform => :ruby
+platform :jruby do
+  gem 'jruby-openssl'
+  gem 'activerecord-jdbcsqlite3-adapter'
+end
+
+platform :ruby do
+  gem 'pry'
+  gem 'pry-debugger'
+end

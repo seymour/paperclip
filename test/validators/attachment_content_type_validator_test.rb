@@ -24,93 +24,272 @@ class AttachmentContentTypeValidatorTest < Test::Unit::TestCase
     end
   end
 
-  context "with an allowed type" do
-    context "as a string" do
+  context "with :allow_nil option" do
+    context "as true" do
       setup do
-        build_validator :content_type => "image/jpg"
-        @dummy.stubs(:avatar_content_type => "image/jpg")
+        build_validator :content_type => "image/png", :allow_nil => true
+        @dummy.stubs(:avatar_content_type => nil)
         @validator.validate(@dummy)
       end
 
-      should "not set an error message" do
+      should "allow avatar_content_type as nil" do
         assert @dummy.errors[:avatar_content_type].blank?
       end
     end
 
-    context "as an regexp" do
+    context "as false" do
       setup do
-        build_validator :content_type => /^image\/.*/
-        @dummy.stubs(:avatar_content_type => "image/jpg")
+        build_validator :content_type => "image/png", :allow_nil => false
+        @dummy.stubs(:avatar_content_type => nil)
         @validator.validate(@dummy)
       end
 
-      should "not set an error message" do
-        assert @dummy.errors[:avatar_content_type].blank?
-      end
-    end
-    
-    context "as a list" do
-      setup do
-        build_validator :content_type => ["image/png", "image/jpg", "image/jpeg"]
-        @dummy.stubs(:avatar_content_type => "image/jpg")
-        @validator.validate(@dummy)
-      end
-
-      should "not set an error message" do
-        assert @dummy.errors[:avatar_content_type].blank?
+      should "not allow avatar_content_type as nil" do
+        assert @dummy.errors[:avatar_content_type].present?
       end
     end
   end
 
-  context "with a disallowed type" do
-    context "as a string" do
+  context "with a failing validation" do
+    setup do
+      build_validator :content_type => "image/png", :allow_nil => false
+      @dummy.stubs(:avatar_content_type => nil)
+      @validator.validate(@dummy)
+    end
+
+    should "add error to the base object" do
+      assert @dummy.errors[:avatar].present?,
+        "Error not added to base attribute"
+    end
+
+    should "add error to base object as a string" do
+      assert_kind_of String, @dummy.errors[:avatar].first,
+        "Error added to base attribute as something other than a String"
+    end
+  end
+
+  context "with a successful validation" do
+    setup do
+      build_validator :content_type => "image/png", :allow_nil => false
+      @dummy.stubs(:avatar_content_type => "image/png")
+      @validator.validate(@dummy)
+    end
+
+    should "not add error to the base object" do
+      assert @dummy.errors[:avatar].blank?,
+        "Error was added to base attribute"
+    end
+  end
+
+  context "with :allow_blank option" do
+    context "as true" do
       setup do
-        build_validator :content_type => "image/png"
-        @dummy.stubs(:avatar_content_type => "image/jpg")
+        build_validator :content_type => "image/png", :allow_blank => true
+        @dummy.stubs(:avatar_content_type => "")
         @validator.validate(@dummy)
       end
 
-      should "set a correct default error message" do
-        assert @dummy.errors[:avatar_content_type].present?
-        assert_includes @dummy.errors[:avatar_content_type], "is invalid"
+      should "allow avatar_content_type as blank" do
+        assert @dummy.errors[:avatar_content_type].blank?
       end
     end
 
-    context "as a regexp" do
+    context "as false" do
       setup do
-        build_validator :content_type => /^text\/.*/
-        @dummy.stubs(:avatar_content_type => "image/jpg")
+        build_validator :content_type => "image/png", :allow_blank => false
+        @dummy.stubs(:avatar_content_type => "")
         @validator.validate(@dummy)
       end
 
-      should "set a correct default error message" do
+      should "not allow avatar_content_type as blank" do
         assert @dummy.errors[:avatar_content_type].present?
-        assert_includes @dummy.errors[:avatar_content_type], "is invalid"
       end
     end
+  end
 
-    context "with :message option" do
-      context "without interpolation" do
+  context "whitelist format" do
+    context "with an allowed type" do
+      context "as a string" do
         setup do
-          build_validator :content_type => "image/png", :message => "should be a PNG image"
+          build_validator :content_type => "image/jpg"
           @dummy.stubs(:avatar_content_type => "image/jpg")
           @validator.validate(@dummy)
         end
 
-        should "set a correct error message" do
-          assert_includes @dummy.errors[:avatar_content_type], "should be a PNG image"
+        should "not set an error message" do
+          assert @dummy.errors[:avatar_content_type].blank?
         end
       end
 
-      context "with interpolation" do
+      context "as an regexp" do
         setup do
-          build_validator :content_type => "image/png", :message => "should have content type %{types}"
+          build_validator :content_type => /^image\/.*/
           @dummy.stubs(:avatar_content_type => "image/jpg")
           @validator.validate(@dummy)
         end
 
-        should "set a correct error message" do
-          assert_includes @dummy.errors[:avatar_content_type], "should have content type image/png"
+        should "not set an error message" do
+          assert @dummy.errors[:avatar_content_type].blank?
+        end
+      end
+
+      context "as a list" do
+        setup do
+          build_validator :content_type => ["image/png", "image/jpg", "image/jpeg"]
+          @dummy.stubs(:avatar_content_type => "image/jpg")
+          @validator.validate(@dummy)
+        end
+
+        should "not set an error message" do
+          assert @dummy.errors[:avatar_content_type].blank?
+        end
+      end
+    end
+
+    context "with a disallowed type" do
+      context "as a string" do
+        setup do
+          build_validator :content_type => "image/png"
+          @dummy.stubs(:avatar_content_type => "image/jpg")
+          @validator.validate(@dummy)
+        end
+
+        should "set a correct default error message" do
+          assert @dummy.errors[:avatar_content_type].present?
+          assert_includes @dummy.errors[:avatar_content_type], "is invalid"
+        end
+      end
+
+      context "as a regexp" do
+        setup do
+          build_validator :content_type => /^text\/.*/
+          @dummy.stubs(:avatar_content_type => "image/jpg")
+          @validator.validate(@dummy)
+        end
+
+        should "set a correct default error message" do
+          assert @dummy.errors[:avatar_content_type].present?
+          assert_includes @dummy.errors[:avatar_content_type], "is invalid"
+        end
+      end
+
+      context "with :message option" do
+        context "without interpolation" do
+          setup do
+            build_validator :content_type => "image/png", :message => "should be a PNG image"
+            @dummy.stubs(:avatar_content_type => "image/jpg")
+            @validator.validate(@dummy)
+          end
+
+          should "set a correct error message" do
+            assert_includes @dummy.errors[:avatar_content_type], "should be a PNG image"
+          end
+        end
+
+        context "with interpolation" do
+          setup do
+            build_validator :content_type => "image/png", :message => "should have content type %{types}"
+            @dummy.stubs(:avatar_content_type => "image/jpg")
+            @validator.validate(@dummy)
+          end
+
+          should "set a correct error message" do
+            assert_includes @dummy.errors[:avatar_content_type], "should have content type image/png"
+          end
+        end
+      end
+    end
+  end
+
+  context "blacklist format" do
+    context "with an allowed type" do
+      context "as a string" do
+        setup do
+          build_validator :not => "image/gif"
+          @dummy.stubs(:avatar_content_type => "image/jpg")
+          @validator.validate(@dummy)
+        end
+
+        should "not set an error message" do
+          assert @dummy.errors[:avatar_content_type].blank?
+        end
+      end
+
+      context "as an regexp" do
+        setup do
+          build_validator :not => /^text\/.*/
+          @dummy.stubs(:avatar_content_type => "image/jpg")
+          @validator.validate(@dummy)
+        end
+
+        should "not set an error message" do
+          assert @dummy.errors[:avatar_content_type].blank?
+        end
+      end
+
+      context "as a list" do
+        setup do
+          build_validator :not => ["image/png", "image/jpg", "image/jpeg"]
+          @dummy.stubs(:avatar_content_type => "image/gif")
+          @validator.validate(@dummy)
+        end
+
+        should "not set an error message" do
+          assert @dummy.errors[:avatar_content_type].blank?
+        end
+      end
+    end
+
+    context "with a disallowed type" do
+      context "as a string" do
+        setup do
+          build_validator :not => "image/png"
+          @dummy.stubs(:avatar_content_type => "image/png")
+          @validator.validate(@dummy)
+        end
+
+        should "set a correct default error message" do
+          assert @dummy.errors[:avatar_content_type].present?
+          assert_includes @dummy.errors[:avatar_content_type], "is invalid"
+        end
+      end
+
+      context "as a regexp" do
+        setup do
+          build_validator :not => /^text\/.*/
+          @dummy.stubs(:avatar_content_type => "text/plain")
+          @validator.validate(@dummy)
+        end
+
+        should "set a correct default error message" do
+          assert @dummy.errors[:avatar_content_type].present?
+          assert_includes @dummy.errors[:avatar_content_type], "is invalid"
+        end
+      end
+
+      context "with :message option" do
+        context "without interpolation" do
+          setup do
+            build_validator :not => "image/png", :message => "should not be a PNG image"
+            @dummy.stubs(:avatar_content_type => "image/png")
+            @validator.validate(@dummy)
+          end
+
+          should "set a correct error message" do
+            assert_includes @dummy.errors[:avatar_content_type], "should not be a PNG image"
+          end
+        end
+
+        context "with interpolation" do
+          setup do
+            build_validator :not => "image/png", :message => "should not have content type %{types}"
+            @dummy.stubs(:avatar_content_type => "image/png")
+            @validator.validate(@dummy)
+          end
+
+          should "set a correct error message" do
+            assert_includes @dummy.errors[:avatar_content_type], "should not have content type image/png"
+          end
         end
       end
     end
@@ -133,8 +312,12 @@ class AttachmentContentTypeValidatorTest < Test::Unit::TestCase
       end
     end
 
-    should "not raise arguemnt error if :content_type was given" do
+    should "not raise argument error if :content_type was given" do
       build_validator :content_type => "image/jpg"
+    end
+
+    should "not raise argument error if :not was given" do
+      build_validator :not => "image/jpg"
     end
   end
 end

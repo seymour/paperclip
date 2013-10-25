@@ -1,17 +1,13 @@
-
+require 'paperclip/attachment_registry'
 require 'set'
-module Paperclip
 
+module Paperclip
   class << self
-    attr_accessor :classes_with_attachments
     attr_writer :registered_attachments_styles_path
     def registered_attachments_styles_path
       @registered_attachments_styles_path ||= Rails.root.join('public/system/paperclip_attachments.yml').to_s
     end
   end
-
-  self.classes_with_attachments = Set.new
-
 
   # Get list of styles saved on previous deploy (running rake paperclip:refresh:missing_styles)
   def self.get_registered_attachments_styles
@@ -38,20 +34,17 @@ module Paperclip
   #   }
   def self.current_attachments_styles
     Hash.new.tap do |current_styles|
-      Paperclip.classes_with_attachments.each do |klass_name|
-        klass = Paperclip.class_for(klass_name)
-        klass.attachment_definitions.each do |attachment_name, attachment_attributes|
-          # TODO: is it even possible to take into account Procs?
-          next if attachment_attributes[:styles].kind_of?(Proc)
-          attachment_attributes[:styles].try(:keys).try(:each) do |style_name|
-            klass_sym = klass.to_s.to_sym
-            current_styles[klass_sym] ||= Hash.new
-            current_styles[klass_sym][attachment_name.to_sym] ||= Array.new
-            current_styles[klass_sym][attachment_name.to_sym] << style_name.to_sym
-            current_styles[klass_sym][attachment_name.to_sym].map!(&:to_s).sort!.map!(&:to_sym).uniq!
-          end  
-        end  
-      end  
+      Paperclip::AttachmentRegistry.each_definition do |klass, attachment_name, attachment_attributes|
+        # TODO: is it even possible to take into account Procs?
+        next if attachment_attributes[:styles].kind_of?(Proc)
+        attachment_attributes[:styles].try(:keys).try(:each) do |style_name|
+          klass_sym = klass.to_s.to_sym
+          current_styles[klass_sym] ||= Hash.new
+          current_styles[klass_sym][attachment_name.to_sym] ||= Array.new
+          current_styles[klass_sym][attachment_name.to_sym] << style_name.to_sym
+          current_styles[klass_sym][attachment_name.to_sym].map!(&:to_s).sort!.map!(&:to_sym).uniq!
+        end
+      end
     end
   end
   private_class_method :current_attachments_styles
@@ -71,7 +64,7 @@ module Paperclip
       current_styles.each do |klass, attachment_definitions|
         attachment_definitions.each do |attachment_name, styles|
           registered = registered_styles[klass][attachment_name] || [] rescue []
-          missed = styles - registered 
+          missed = styles - registered
           if missed.present?
             klass_sym = klass.to_s.to_sym
             missing_styles[klass_sym] ||= Hash.new
@@ -80,8 +73,7 @@ module Paperclip
             missing_styles[klass_sym][attachment_name.to_sym].map!(&:to_s).sort!.map!(&:to_sym).uniq!
           end
         end
-      end  
+      end
     end
   end
-
 end

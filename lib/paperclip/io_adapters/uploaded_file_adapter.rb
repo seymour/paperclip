@@ -1,7 +1,8 @@
 module Paperclip
-  class UploadedFileAdapter
+  class UploadedFileAdapter < AbstractAdapter
     def initialize(target)
       @target = target
+      cache_current_values
 
       if @target.respond_to?(:tempfile)
         @tempfile = copy_to_tempfile(@target.tempfile)
@@ -10,50 +11,28 @@ module Paperclip
       end
     end
 
-    def original_filename
-      @target.original_filename
-    end
-
-    def content_type
-      @target.content_type
-    end
-
-    def fingerprint
-      @fingerprint ||= Digest::MD5.file(path).to_s
-    end
-
-    def size
-      File.size(path)
-    end
-
-    def nil?
-      false
-    end
-
-    def read(length = nil, buffer = nil)
-      @tempfile.read(length, buffer)
-    end
-
-    # We don't use this directly, but aws/sdk does.
-    def rewind
-      @tempfile.rewind
-    end
-
-    def eof?
-      @tempfile.eof?
-    end
-
-    def path
-      @tempfile.path
+    class << self
+      attr_accessor :content_type_detector
     end
 
     private
 
-    def copy_to_tempfile(src)
-      dest = Tempfile.new(original_filename)
-      dest.binmode
-      FileUtils.cp(src.path, dest.path)
-      dest
+    def cache_current_values
+      self.original_filename = @target.original_filename
+      @content_type = determine_content_type
+      @size = File.size(@target.path)
+    end
+
+    def content_type_detector
+      self.class.content_type_detector
+    end
+
+    def determine_content_type
+      content_type = @target.content_type.to_s.strip
+      if content_type_detector
+        content_type = content_type_detector.new(@target.path).detect
+      end
+      content_type
     end
   end
 end

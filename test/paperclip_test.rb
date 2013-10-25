@@ -33,17 +33,27 @@ class PaperclipTest < Test::Unit::TestCase
     end
   end
 
+  should 'not raise errors when doing a lot of running' do
+    Paperclip.options[:command_path] = ["/usr/local/bin"] * 1024
+    Cocaine::CommandLine.path = "/something/else"
+    100.times do |x|
+      Paperclip.run("echo", x.to_s)
+    end
+  end
+
   context "Calling Paperclip.log without options[:logger] set" do
     setup do
       Paperclip.logger = nil
       Paperclip.options[:logger] = nil
     end
+
     teardown do
       Paperclip.options[:logger] = ActiveRecord::Base.logger
       Paperclip.logger = ActiveRecord::Base.logger
     end
+
     should "not raise an error when log is called" do
-      assert_nothing_raised do
+      silence_stream(STDOUT) do
         Paperclip.log('something')
       end
     end
@@ -58,12 +68,14 @@ class PaperclipTest < Test::Unit::TestCase
 
   context "Paperclip.each_instance_with_attachment" do
     setup do
-      @file = File.new(File.join(FIXTURES_DIR, "5k.png"), 'rb')
+      @file = File.new(fixture_file("5k.png"), 'rb')
       d1 = Dummy.create(:avatar => @file)
       d2 = Dummy.create
       d3 = Dummy.create(:avatar => @file)
       @expected = [d1, d3]
     end
+
+    teardown { @file.close }
 
     should "yield every instance of a model that has an attachment" do
       actual = []
@@ -95,39 +107,10 @@ class PaperclipTest < Test::Unit::TestCase
     end
   end
 
-  context "Attachments with clashing URLs should raise error" do
-    setup do
-      class Dummy2 < ActiveRecord::Base
-        include Paperclip::Glue
-      end
-    end
-
-    should "generate warning if attachment is redefined with the same url string" do
-      expected_log_msg = "Duplicate URL for blah with /system/:id/:style/:filename. This will clash with attachment defined in Dummy class"
-      Paperclip.expects(:log).with(expected_log_msg)
-      Dummy.class_eval do
-        has_attached_file :blah, :url => '/system/:id/:style/:filename'
-      end
-      Dummy2.class_eval do
-        has_attached_file :blah, :url => '/system/:id/:style/:filename'
-      end
-    end
-
-    should "not generate warning if attachment is redifined with the same url string but has :class in it" do
-      Paperclip.expects(:log).never
-      Dummy.class_eval do
-        has_attached_file :blah, :url => "/system/:class/:attachment/:id/:style/:filename"
-      end
-      Dummy2.class_eval do
-        has_attached_file :blah, :url => "/system/:class/:attachment/:id/:style/:filename"
-      end
-    end
-  end
-
   context "An ActiveRecord model with an 'avatar' attachment" do
     setup do
       rebuild_model :path => "tmp/:class/omg/:style.:extension"
-      @file = File.new(File.join(FIXTURES_DIR, "5k.png"), 'rb')
+      @file = File.new(fixture_file("5k.png"), 'rb')
     end
 
     teardown { @file.close }
@@ -140,28 +123,30 @@ class PaperclipTest < Test::Unit::TestCase
       end
     end
 
-    context "that is attr_protected" do
-      setup do
-        Dummy.class_eval do
-          attr_protected :avatar
+    if using_protected_attributes?
+      context "that is attr_protected" do
+        setup do
+          Dummy.class_eval do
+            attr_protected :avatar
+          end
+          @dummy = Dummy.new
         end
-        @dummy = Dummy.new
-      end
 
-      should "not assign the avatar on mass-set" do
-        @dummy.attributes = { :other => "I'm set!",
-                              :avatar => @file }
+        should "not assign the avatar on mass-set" do
+          @dummy.attributes = { :other => "I'm set!",
+                                :avatar => @file }
 
-        assert_equal "I'm set!", @dummy.other
-        assert ! @dummy.avatar?
-      end
+          assert_equal "I'm set!", @dummy.other
+          assert ! @dummy.avatar?
+        end
 
-      should "still allow assigment on normal set" do
-        @dummy.other  = "I'm set!"
-        @dummy.avatar = @file
+        should "still allow assigment on normal set" do
+          @dummy.other  = "I'm set!"
+          @dummy.avatar = @file
 
-        assert_equal "I'm set!", @dummy.other
-        assert @dummy.avatar?
+          assert_equal "I'm set!", @dummy.other
+          assert @dummy.avatar?
+        end
       end
     end
 
@@ -174,11 +159,6 @@ class PaperclipTest < Test::Unit::TestCase
         assert_nothing_raised do
           @subdummy = SubDummy.create(:avatar => @file)
         end
-      end
-
-      should "be able to see the attachment definition from the subclass's class" do
-        assert_equal "tmp/:class/omg/:style.:extension",
-                     SubDummy.attachment_definitions[:avatar][:path]
       end
 
       teardown do
